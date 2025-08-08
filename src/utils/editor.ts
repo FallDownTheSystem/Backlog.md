@@ -23,21 +23,21 @@ function getPlatformDefaultEditor(): string {
 
 /**
  * Resolve the editor command based on configuration, environment, and platform defaults
- * Priority: EDITOR env var -> config.defaultEditor -> platform default
+ * Priority: config.defaultEditor -> EDITOR env var -> platform default
  */
 export function resolveEditor(config?: BacklogConfig | null): string {
-	// First check environment variable
+	// First check project-specific config (highest priority)
+	if (config?.defaultEditor) {
+		return config.defaultEditor;
+	}
+
+	// Then check environment variable (user's global preference)
 	const editorEnv = process.env.EDITOR;
 	if (editorEnv) {
 		return editorEnv;
 	}
 
-	// Then check config
-	if (config?.defaultEditor) {
-		return config.defaultEditor;
-	}
-
-	// Finally use platform default
+	// Finally use platform default (fallback)
 	return getPlatformDefaultEditor();
 }
 

@@ -24,7 +24,7 @@ describe("Editor utilities", () => {
 	});
 
 	describe("resolveEditor", () => {
-		it("should prioritize EDITOR environment variable over config defaultEditor", () => {
+		it("should prioritize config defaultEditor over EDITOR environment variable", () => {
 			process.env.EDITOR = "vim";
 			const config: BacklogConfig = {
 				projectName: "Test",
@@ -36,7 +36,7 @@ describe("Editor utilities", () => {
 			};
 
 			const editor = resolveEditor(config);
-			expect(editor).toBe("vim");
+			expect(editor).toBe("code");
 		});
 
 		it("should use config defaultEditor when EDITOR environment variable is not set", () => {
