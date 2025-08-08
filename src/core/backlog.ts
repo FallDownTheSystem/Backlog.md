@@ -662,14 +662,20 @@ export class Core {
 			this.fs.listCompletedTasks(),
 		]);
 
-		// Now load remote tasks with local tasks for optimization
-		const remoteTasks = await loadRemoteTasks(
-			this.git,
-			config,
-			progressCallback,
-			localTasks, // Pass local tasks to optimize remote loading
-		);
-		progressCallback?.("Loaded tasks");
+		// Only load remote tasks if cross-branch checking is enabled
+		let remoteTasks: TaskWithMetadata[] = [];
+		if (config?.checkActiveBranches !== false) {
+			// Now load remote tasks with local tasks for optimization
+			remoteTasks = await loadRemoteTasks(
+				this.git,
+				config,
+				progressCallback,
+				localTasks, // Pass local tasks to optimize remote loading
+			);
+			progressCallback?.("Loaded tasks");
+		} else {
+			progressCallback?.("Skipping remote task loading (cross-branch checking disabled)...");
+		}
 
 		// Create map with local tasks
 		const tasksById = new Map<string, Task>(localTasks.map((t) => [t.id, { ...t, source: "local" }]));
@@ -699,7 +705,7 @@ export class Core {
 
 		if (config?.checkActiveBranches === false) {
 			// Skip cross-branch checking for maximum performance
-			progressCallback?.("Skipping cross-branch check (disabled in config)...");
+			// We've already skipped remote loading, so just use all tasks as-is
 			activeTasks = tasks;
 		} else {
 			// Get the latest state of each task across all branches
