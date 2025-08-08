@@ -1,5 +1,5 @@
 import { platform } from "node:os";
-import { $ } from "bun";
+import { spawn } from "bun";
 import type { BacklogConfig } from "../types/index.ts";
 
 /**
@@ -46,31 +46,48 @@ export function resolveEditor(config?: BacklogConfig | null): string {
  */
 export async function isEditorAvailable(editor: string): Promise<boolean> {
 	try {
-		// Try to run the editor with --version or --help to check if it exists
-		// Split the editor command in case it has arguments
-		const parts = editor.split(" ");
+		// Parse the editor command to handle quoted paths
+		const parts = splitCommand(editor);
 		const command = parts[0]!;
 
-		// For Windows, just check if the command exists
-		if (platform() === "win32") {
-			try {
-				await $`where ${command}`.quiet();
-				return true;
-			} catch {
-				return false;
-			}
-		}
+		// Try to spawn the editor with a help flag to check if it exists
+		// We use a non-existent file to avoid actually opening anything
+		const proc = spawn([command, "--version"], {
+			shell: platform() === "win32",
+			stdio: ["ignore", "ignore", "ignore"],
+		});
 
-		// For Unix-like systems, use which
 		try {
-			await $`which ${command}`.quiet();
+			const exitCode = await Promise.race([
+				proc.exited,
+				new Promise<number>((resolve) => setTimeout(() => resolve(1), 1000)),
+			]);
+			// Kill the process if it's still running
+			proc.kill();
+			// Most editors return 0 or 1 for --version, but some might not have this flag
+			// We consider it available if it didn't throw an error during spawn
 			return true;
 		} catch {
 			return false;
 		}
 	} catch {
+		// If spawn throws, the command doesn't exist
 		return false;
 	}
+}
+
+/**
+ * Parse a command line respecting quotes
+ * e.g., "C:\Program Files\Editor.exe" --wait -> ["C:\Program Files\Editor.exe", "--wait"]
+ */
+function splitCommand(cmd: string): string[] {
+	const re = /[^\s"]+|"([^"]*)"/g;
+	const parts: string[] = [];
+	cmd.replace(re, (m, q) => {
+		parts.push(q ?? m);
+		return "";
+	});
+	return parts;
 }
 
 /**
@@ -80,20 +97,22 @@ export async function openInEditor(filePath: string, config?: BacklogConfig | nu
 	const editor = resolveEditor(config);
 
 	try {
-		// Split the editor command in case it has arguments
-		const parts = editor.split(" ");
+		// Parse the editor command to handle quoted paths
+		const parts = splitCommand(editor);
 		const command = parts[0]!;
-		const args = [...parts.slice(1), filePath];
+		const editorArgs = parts.slice(1);
+		const args = [...editorArgs, filePath];
 
-		// Use the new Bun shell API
-		// Don't use .quiet() as it breaks interactive editors like vim/helix
-		// The editor needs to inherit stdio to work properly
-		try {
-			await $`${command} ${args}`;
-			return true;
-		} catch {
-			return false;
-		}
+		// Use Bun.spawn with proper stdio inheritance
+		const proc = spawn([command, ...args], {
+			// On Windows, use shell to resolve .cmd/.bat files
+			shell: platform() === "win32",
+			// Critical for TUI editors to work properly
+			stdio: ["inherit", "inherit", "inherit"],
+		});
+
+		const exitCode = await proc.exited;
+		return exitCode === 0;
 	} catch (error) {
 		console.error(`Failed to open editor: ${error}`);
 		return false;
