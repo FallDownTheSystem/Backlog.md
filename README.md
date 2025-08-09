@@ -1,9 +1,12 @@
-<h1 align="center">Backlog.md</h1>
+<h1 align="center">Backlog.md (Custom Windows Build)</h1>
 <p align="center">Markdown‑native Task Manager &amp; Kanban visualizer for any Git repository</p>
+<p align="center"><em>Custom fork with Windows-specific fixes and improvements</em></p>
 
 <p align="center">
-<code>npm i -g backlog.md</code> or <code>bun add -g backlog.md</code> or <code>brew install backlog-md</code> or <code>nix run github:MrLesk/Backlog.md</code>
+<code>npm i -g @falldownthesystem/backlog.md</code>
 </p>
+
+> **Note**: This is a custom Windows-only build. For the original cross-platform version, use <code>npm i -g backlog.md</code>
 
 ![Backlog demo GIF using: backlog board](./.github/backlog.gif)
 
@@ -39,7 +42,8 @@
 ## <img src="./.github/5-minute-tour-256.png" alt="5-minute tour" width="28" height="28" align="center"> Five‑minute tour
 ```bash
 # 1. Make sure you have Backlog.md installed  
-bun/npm i -g backlog.md or brew install backlog-md
+npm i -g @falldownthesystem/backlog.md  # Windows-only custom build
+# or: npm i -g backlog.md  # Original cross-platform version
 
 # 2. Bootstrap a repo + backlog  
 backlog init "My Awesome Project"
@@ -308,6 +312,65 @@ Generated on: 2025-08-06 20:33:41
 |  |  | **TASK-210** - Refactor Nix packaging to build node_modules offline<br>*#nix #build #packaging* |
 
 <!-- BOARD_END -->
+
+---
+
+## Building and Publishing (Custom Windows Build)
+
+This custom fork includes Windows-specific fixes for:
+- Editor spawning on corporate Windows environments
+- TUI display issues in Windows Terminal
+- Loading screen cleanup
+- Git error suppression
+
+### Prerequisites
+
+- Windows OS
+- Bun installed globally (`powershell -c "irm bun.sh/install.ps1 | iex"`)
+- npm account with publish access
+
+### Building
+
+```bash
+# Install dependencies
+bun install
+
+# Build the Windows binary with embedded version
+bun build src/cli.ts --compile --minify --target=bun-windows-x64 --define __EMBEDDED_VERSION__='"1.7.2-custom.X"' --outfile=bin/backlog.exe
+
+# Test the binary
+./bin/backlog.exe --version
+```
+
+### Publishing to npm
+
+1. Update the version in `package.json`
+2. Rebuild the binary with the new version number (see above)
+3. Ensure the wrapper script is at `bin/cli.cjs`
+4. Publish:
+
+```bash
+npm publish --access public --tag latest
+```
+
+### Package Structure
+
+```
+bin/
+├── cli.cjs      # Node.js wrapper script (CommonJS)
+└── backlog.exe  # Compiled Windows binary (~120MB)
+```
+
+The wrapper script (`cli.cjs`) detects the platform and runs the Windows binary. Non-Windows users will get an error message directing them to the original package.
+
+### Custom Fixes Included
+
+- **Editor Spawning**: Multi-strategy spawning with fallbacks for corporate Windows environments
+- **TUI Borders**: Fixed Unicode box-drawing characters for Windows Terminal
+- **Loading Screen**: Proper cleanup using text widget instead of log widget
+- **Git Errors**: Suppressed stderr output during branch operations
+
+---
 
 ### License
 
