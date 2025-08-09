@@ -8,9 +8,12 @@ import type { BacklogConfig, Task } from "../types/index.ts";
 import { buildRemoteTaskIndex, chooseWinners, hydrateTasks } from "./task-loader.ts";
 
 /**
- * Get the appropriate loading message based on remote operations configuration
+ * Get the appropriate loading message based on configuration
  */
 export function getTaskLoadingMessage(config: BacklogConfig | null): string {
+	if (config?.checkActiveBranches === false) {
+		return "Loading local tasks only...";
+	}
 	return config?.remoteOperations === false
 		? "Loading tasks from local branches..."
 		: "Loading tasks from local and remote branches...";

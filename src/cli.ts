@@ -6,8 +6,7 @@ import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 import prompts from "prompts";
 import { DEFAULT_DIRECTORIES } from "./constants/index.ts";
-import { filterTasksByLatestState, getLatestTaskStatesForIds } from "./core/cross-branch-tasks.ts";
-import { loadRemoteTasks, resolveTaskConflict, type TaskWithMetadata } from "./core/remote-tasks.ts";
+import type { TaskWithMetadata } from "./core/remote-tasks.ts";
 import {
 	type AgentInstructionFile,
 	addAgentInstructions,
@@ -1533,58 +1532,32 @@ function addBoardOptions(cmd: Command) {
 		.option("--vertical", "use vertical layout (shortcut for --layout vertical)");
 }
 
-// TaskWithMetadata and resolveTaskConflict are now imported from remote-tasks.ts
-
 async function handleBoardView(options: { layout?: string; vertical?: boolean }) {
 	const cwd = process.cwd();
 	const core = new Core(cwd);
 	const config = await core.filesystem.loadConfig();
-	const statuses = config?.statuses || [];
-	const resolutionStrategy = config?.taskResolutionStrategy || "most_progressed";
 
 	// Load tasks with loading screen for better user experience
 	const allTasks = await (async () => {
 		const loadingScreen = await createLoadingScreen("Loading board");
 
 		try {
-			// Load local and remote tasks in parallel
-			const { getTaskLoadingMessage } = await import("./core/remote-tasks.ts");
-			loadingScreen?.update(getTaskLoadingMessage(config));
-			const [localTasks, remoteTasks] = await Promise.all([
-				core.listTasksWithMetadata(),
-				loadRemoteTasks(core.gitOps, config),
-			]);
+			// Use the centralized loadActiveTasks method which respects checkActiveBranches config
+			const loadingMessage =
+				config?.checkActiveBranches === false
+					? "Loading local tasks only..."
+					: config?.remoteOperations === false
+						? "Loading tasks from local branches..."
+						: "Loading tasks from local and remote branches...";
 
-			// Create map with local tasks
-			const tasksById = new Map<string, Task>(localTasks.map((t) => [t.id, { ...t, source: "local" }]));
+			loadingScreen?.update(loadingMessage);
 
-			// Merge remote tasks with local tasks
-			for (const remoteTask of remoteTasks) {
-				const existing = tasksById.get(remoteTask.id);
-				if (!existing) {
-					tasksById.set(remoteTask.id, remoteTask);
-				} else {
-					const resolved = resolveTaskConflict(existing, remoteTask, statuses, resolutionStrategy);
-					tasksById.set(remoteTask.id, resolved);
-				}
-			}
-
-			// Get the latest directory location of each task across all branches
-			// Use optimized version that only checks the tasks we have
-			loadingScreen?.update("Resolving task states across branches...");
-			const tasks = Array.from(tasksById.values());
-			const taskIds = tasks.map((t) => t.id);
-			const latestTaskDirectories = await getLatestTaskStatesForIds(core.gitOps, core.filesystem, taskIds, (msg) => {
+			const { tasks } = await core.loadActiveTasks((msg) => {
 				loadingScreen?.update(msg);
 			});
 
-			// Filter tasks based on their latest directory location
-			// Only show tasks whose latest directory type is "task" (not draft or archived)
-			loadingScreen?.update("Filtering active tasks...");
-			const filteredTasks = filterTasksByLatestState(tasks, latestTaskDirectories);
-
 			loadingScreen?.close();
-			return filteredTasks;
+			return tasks;
 		} catch (error) {
 			loadingScreen?.close();
 			throw error;
@@ -1634,41 +1607,19 @@ boardCmd
 		const loadingScreen = await createLoadingScreen("Loading tasks for export");
 
 		try {
-			// Load local tasks
-			loadingScreen?.update("Loading local tasks...");
-			const localTasks = await core.listTasksWithMetadata();
-			const tasksById = new Map<string, TaskWithMetadata>(
-				localTasks.map((t) => [t.id, { ...t, source: "local" } as TaskWithMetadata]),
-			);
-			loadingScreen?.update(`Found ${localTasks.length} local tasks`);
+			// Use the centralized loadActiveTasks method which respects checkActiveBranches config
+			const loadingMessage =
+				config?.checkActiveBranches === false
+					? "Loading local tasks only..."
+					: config?.remoteOperations === false
+						? "Loading tasks from local branches..."
+						: "Loading tasks from local and remote branches...";
 
-			// Load remote tasks in parallel
-			loadingScreen?.update("Loading remote tasks...");
-			const remoteTasks = await loadRemoteTasks(core.gitOps, config, (msg: string) => loadingScreen?.update(msg));
+			loadingScreen?.update(loadingMessage);
 
-			// Merge remote tasks with local tasks
-			loadingScreen?.update("Merging tasks...");
-			for (const remoteTask of remoteTasks) {
-				const existing = tasksById.get(remoteTask.id);
-				if (!existing) {
-					tasksById.set(remoteTask.id, remoteTask);
-				} else {
-					const resolved = resolveTaskConflict(existing, remoteTask, statuses, resolutionStrategy);
-					tasksById.set(remoteTask.id, resolved);
-				}
-			}
-
-			// Get the latest state of each task across all branches
-			loadingScreen?.update("Checking task states across branches...");
-			const tasks = Array.from(tasksById.values());
-			const taskIds = tasks.map((t) => t.id);
-			const latestTaskDirectories = await getLatestTaskStatesForIds(core.gitOps, core.filesystem, taskIds, (msg) =>
-				loadingScreen?.update(msg),
-			);
-
-			// Filter tasks based on their latest directory location
-			// Only show tasks whose latest directory type is "task" (not draft or archived)
-			const finalTasks = filterTasksByLatestState(tasks, latestTaskDirectories);
+			const { tasks: finalTasks } = await core.loadActiveTasks((msg) => {
+				loadingScreen?.update(msg);
+			});
 
 			loadingScreen?.update(`Total tasks: ${finalTasks.length}`);
 
