@@ -54,14 +54,11 @@ export async function getLatestTaskStatesForIds(
 
 		// Quick check which branches actually have the backlog directory
 		for (const branch of branches) {
-			try {
-				// Just check if the backlog directory exists
-				const files = await gitOps.listFilesInTree(branch, backlogDir);
-				if (files.length > 0) {
-					branchesWithBacklog.push(branch);
-				}
-			} catch {
-				// Branch doesn't have backlog directory
+			// Just check if the backlog directory exists
+			// listFilesInTree now silently returns empty array on error
+			const files = await gitOps.listFilesInTree(branch, backlogDir);
+			if (files.length > 0) {
+				branchesWithBacklog.push(branch);
 			}
 		}
 

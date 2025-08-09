@@ -152,6 +152,105 @@ function createLoadingScreenBase(config: LoadingScreenConfig): {
 }
 
 /**
+ * Show a loading screen and run an async operation with progress updates.
+ * This creates the screen in its own promise context, similar to how the board view works.
+ *
+ * @param message - Initial loading message
+ * @param operation - Async function that receives an update callback
+ * @returns The result of the operation
+ */
+export async function showLoadingScreenWithOperation<T>(
+	message: string,
+	operation: (updateMessage: (msg: string) => void) => Promise<T>,
+): Promise<T> {
+	// Non-TTY fallback
+	if (!process.stdout.isTTY) {
+		console.log(`${message}...`);
+		return operation((msg) => console.log(`  ${msg}...`));
+	}
+
+	// Create and show loading screen in its own promise context
+	return new Promise<T>((resolve, reject) => {
+		const screen = createScreen({ title: "Backlog Board" });
+		let spinnerInterval: NodeJS.Timeout | null = null;
+		let spinnerIndex = 0;
+
+		// Create loading box - make it wider for longer messages
+		const loadingBox = blessed.box({
+			parent: screen,
+			top: "center",
+			left: "center",
+			width: 70,
+			height: 5,
+			border: {
+				type: "line",
+			},
+			style: {
+				border: { fg: "cyan" },
+			},
+			label: " Loading ",
+		});
+
+		// Message text - use text widget but accumulate messages
+		const messages: string[] = [message];
+		const maxMessages = 3; // Max messages to show at once
+
+		const messageText = blessed.text({
+			parent: loadingBox,
+			top: 0,
+			left: 1,
+			width: "100%-4",
+			height: "100%-2",
+			tags: true,
+			wrap: true,
+			content: message,
+			style: { fg: "white" },
+		});
+
+		// Start spinner
+		const SPINNER_CHARS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+		spinnerInterval = setInterval(() => {
+			spinnerIndex = (spinnerIndex + 1) % SPINNER_CHARS.length;
+			loadingBox.setLabel(` ${SPINNER_CHARS[spinnerIndex]} Loading `);
+			screen.render();
+		}, 100);
+
+		// Handle escape
+		screen.key(["escape", "C-c", "q"], () => {
+			if (spinnerInterval) clearInterval(spinnerInterval);
+			screen.destroy();
+			reject(new Error("Loading cancelled"));
+		});
+
+		screen.render();
+
+		// Update function - accumulate messages and show recent ones
+		const updateMessage = (msg: string) => {
+			messages.push(msg);
+			// Keep only the most recent messages that fit in the box
+			if (messages.length > maxMessages) {
+				messages.shift(); // Remove oldest message
+			}
+			messageText.setContent(messages.join("\n"));
+			screen.render();
+		};
+
+		// Run the operation
+		operation(updateMessage)
+			.then((result) => {
+				if (spinnerInterval) clearInterval(spinnerInterval);
+				screen.destroy();
+				resolve(result);
+			})
+			.catch((error) => {
+				if (spinnerInterval) clearInterval(spinnerInterval);
+				screen.destroy();
+				reject(error);
+			});
+	});
+}
+
+/**
  * Show a loading screen while an async operation runs.
  * Falls back to console.log if blessed is not available.
  *

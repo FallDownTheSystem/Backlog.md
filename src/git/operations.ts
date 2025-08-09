@@ -274,6 +274,9 @@ export class GitOperations {
 				const [branch, dateStr] = line.split("|");
 				if (!branch || !dateStr) continue;
 
+				// Skip HEAD references and standalone "origin" (which is refs/remotes/origin/HEAD)
+				if (branch === "origin" || branch.endsWith("/HEAD")) continue;
+
 				const commitDate = new Date(dateStr);
 				if (commitDate >= since) {
 					// Keep the full branch name including origin/ prefix
@@ -316,15 +319,24 @@ export class GitOperations {
 				.split("\n")
 				.map((l) => l.trim())
 				.filter(Boolean)
-				.filter((b) => !b.includes("HEAD"));
+				.filter((b) => !b.includes("HEAD"))
+				.filter((b) => b !== "origin"); // Filter out standalone "origin" which is not a valid branch
 		} catch {
 			return [];
 		}
 	}
 
 	async listFilesInTree(ref: string, path: string): Promise<string[]> {
-		const { stdout } = await this.execGit(["ls-tree", "-r", "--name-only", "-z", ref, "--", path], { readOnly: true });
-		return stdout.split("\0").filter(Boolean);
+		try {
+			const { stdout } = await this.execGit(["ls-tree", "-r", "--name-only", "-z", ref, "--", path], {
+				readOnly: true,
+			});
+			return stdout.split("\0").filter(Boolean);
+		} catch (error) {
+			// Silently return empty array if branch/ref doesn't exist
+			// This prevents git stderr from leaking to the console during loading
+			return [];
+		}
 	}
 	async showFile(ref: string, filePath: string): Promise<string> {
 		const { stdout } = await this.execGit(["show", `${ref}:${filePath}`], { readOnly: true });

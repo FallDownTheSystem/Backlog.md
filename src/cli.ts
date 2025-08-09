@@ -19,7 +19,7 @@ import {
 } from "./index.ts";
 import type { Decision, Document as DocType, Task } from "./types/index.ts";
 import { genericSelectList } from "./ui/components/generic-list.ts";
-import { createLoadingScreen } from "./ui/loading.ts";
+import { createLoadingScreen, showLoadingScreenWithOperation } from "./ui/loading.ts";
 import { formatTaskPlainText, viewTaskEnhanced } from "./ui/task-viewer.ts";
 import { promptText, scrollableViewer } from "./ui/tui.ts";
 import { getTaskFilename, getTaskPath } from "./utils/task-path.ts";
@@ -1537,32 +1537,24 @@ async function handleBoardView(options: { layout?: string; vertical?: boolean })
 	const core = new Core(cwd);
 	const config = await core.filesystem.loadConfig();
 
-	// Load tasks with loading screen for better user experience
-	const allTasks = await (async () => {
-		const loadingScreen = await createLoadingScreen("Loading board");
+	// Load tasks with loading screen that properly manages its lifecycle
+	const allTasks = await showLoadingScreenWithOperation("Loading board", async (updateMessage) => {
+		// Use the centralized loadActiveTasks method which respects checkActiveBranches config
+		const loadingMessage =
+			config?.checkActiveBranches === false
+				? "Loading local tasks only"
+				: config?.remoteOperations === false
+					? "Loading tasks from local branches"
+					: "Loading tasks from local and remote branches";
 
-		try {
-			// Use the centralized loadActiveTasks method which respects checkActiveBranches config
-			const loadingMessage =
-				config?.checkActiveBranches === false
-					? "Loading local tasks only"
-					: config?.remoteOperations === false
-						? "Loading tasks from local branches"
-						: "Loading tasks from local and remote branches";
+		updateMessage(loadingMessage);
 
-			loadingScreen?.update(loadingMessage);
+		const { tasks } = await core.loadActiveTasks((msg) => {
+			updateMessage(msg);
+		});
 
-			const { tasks } = await core.loadActiveTasks((msg) => {
-				loadingScreen?.update(msg);
-			});
-
-			loadingScreen?.close();
-			return tasks;
-		} catch (error) {
-			loadingScreen?.close();
-			throw error;
-		}
-	})();
+		return tasks;
+	});
 
 	if (allTasks.length === 0) {
 		console.log("No tasks found.");
