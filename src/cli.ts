@@ -1545,10 +1545,10 @@ async function handleBoardView(options: { layout?: string; vertical?: boolean })
 			// Use the centralized loadActiveTasks method which respects checkActiveBranches config
 			const loadingMessage =
 				config?.checkActiveBranches === false
-					? "Loading local tasks only..."
+					? "Loading local tasks only"
 					: config?.remoteOperations === false
-						? "Loading tasks from local branches..."
-						: "Loading tasks from local and remote branches...";
+						? "Loading tasks from local branches"
+						: "Loading tasks from local and remote branches";
 
 			loadingScreen?.update(loadingMessage);
 
@@ -1574,6 +1574,7 @@ async function handleBoardView(options: { layout?: string; vertical?: boolean })
 
 	// Use unified view for Tab switching support
 	const { runUnifiedView } = await import("./ui/unified-view.ts");
+	const statuses = config?.statuses || [];
 	await runUnifiedView({
 		core,
 		initialView: "kanban",
@@ -1600,8 +1601,6 @@ boardCmd
 		const cwd = process.cwd();
 		const core = new Core(cwd);
 		const config = await core.filesystem.loadConfig();
-		const statuses = config?.statuses || [];
-		const resolutionStrategy = config?.taskResolutionStrategy || "most_progressed";
 
 		// Load tasks with progress tracking
 		const loadingScreen = await createLoadingScreen("Loading tasks for export");
@@ -1610,10 +1609,10 @@ boardCmd
 			// Use the centralized loadActiveTasks method which respects checkActiveBranches config
 			const loadingMessage =
 				config?.checkActiveBranches === false
-					? "Loading local tasks only..."
+					? "Loading local tasks only"
 					: config?.remoteOperations === false
-						? "Loading tasks from local branches..."
-						: "Loading tasks from local and remote branches...";
+						? "Loading tasks from local branches"
+						: "Loading tasks from local and remote branches";
 
 			loadingScreen?.update(loadingMessage);
 
@@ -1629,6 +1628,7 @@ boardCmd
 			// Get project name from config or use directory name
 			const { basename } = await import("node:path");
 			const projectName = config?.projectName || basename(cwd);
+			const statuses = config?.statuses || [];
 
 			if (options.readme) {
 				// Use version from option if provided, otherwise use the CLI version

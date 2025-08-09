@@ -645,6 +645,81 @@ export class Core {
 	}
 
 	/**
+	 * Load active tasks (local and optionally remote based on config)
+	 * Used by board and other commands that need the current active task set
+	 */
+	async loadActiveTasks(progressCallback?: (msg: string) => void): Promise<{ tasks: Task[] }> {
+		const config = await this.fs.loadConfig();
+		const statuses = (config?.statuses || DEFAULT_STATUSES) as string[];
+		const resolutionStrategy = config?.taskResolutionStrategy || "most_progressed";
+
+		// Load local tasks
+		progressCallback?.("Loading local tasks");
+		const localTasks = await this.listTasksWithMetadata();
+
+		// Only load remote tasks if cross-branch checking is enabled
+		let remoteTasks: Task[] = [];
+		if (config?.checkActiveBranches !== false) {
+			// Load remote tasks with local tasks for optimization
+			remoteTasks = await loadRemoteTasks(
+				this.git,
+				config,
+				progressCallback,
+				localTasks, // Pass local tasks to optimize remote loading
+			);
+			progressCallback?.("Loaded tasks");
+		} else {
+			progressCallback?.("Skipping remote task loading (cross-branch checking disabled)");
+		}
+
+		// Create map with local tasks
+		const tasksById = new Map<string, Task>(localTasks.map((t) => [t.id, { ...t, source: "local" }]));
+
+		// Merge remote tasks with local tasks
+		if (remoteTasks.length > 0) {
+			progressCallback?.("Merging tasks");
+			for (const remoteTask of remoteTasks) {
+				const existing = tasksById.get(remoteTask.id);
+				if (!existing) {
+					tasksById.set(remoteTask.id, remoteTask);
+				} else {
+					const resolved = resolveTaskConflict(existing, remoteTask, statuses, resolutionStrategy);
+					tasksById.set(remoteTask.id, resolved);
+				}
+			}
+		}
+
+		// Get all tasks as array
+		const tasks = Array.from(tasksById.values());
+		let activeTasks: Task[];
+
+		if (config?.checkActiveBranches === false) {
+			// Skip cross-branch checking for maximum performance
+			// We've already skipped remote loading, so just use all tasks as-is
+			activeTasks = tasks;
+		} else {
+			// Get the latest state of each task across all branches
+			progressCallback?.("Checking task states across branches");
+			const taskIds = tasks.map((t) => t.id);
+			const latestTaskDirectories = await getLatestTaskStatesForIds(
+				this.git,
+				this.fs,
+				taskIds,
+				progressCallback || (() => {}),
+				{
+					recentBranchesOnly: true,
+					daysAgo: config?.activeBranchDays ?? 30,
+				},
+			);
+
+			// Filter tasks based on their latest directory location
+			activeTasks = filterTasksByLatestState(tasks, latestTaskDirectories);
+		}
+
+		return { tasks: activeTasks };
+	}
+
+	/**
 	 * Load and process all tasks with the same logic as CLI overview
 	 * This method extracts the common task loading logic for reuse
 	 */
@@ -656,7 +731,7 @@ export class Core {
 		const resolutionStrategy = config?.taskResolutionStrategy || "most_progressed";
 
 		// Load local and completed tasks first
-		progressCallback?.("Loading local tasks...");
+		progressCallback?.("Loading local tasks");
 		const [localTasks, completedTasks] = await Promise.all([
 			this.listTasksWithMetadata(),
 			this.fs.listCompletedTasks(),
@@ -674,7 +749,7 @@ export class Core {
 			);
 			progressCallback?.("Loaded tasks");
 		} else {
-			progressCallback?.("Skipping remote task loading (cross-branch checking disabled)...");
+			progressCallback?.("Skipping remote task loading (cross-branch checking disabled)");
 		}
 
 		// Create map with local tasks
@@ -688,7 +763,7 @@ export class Core {
 		}
 
 		// Merge remote tasks with local tasks
-		progressCallback?.("Merging tasks...");
+		progressCallback?.("Merging tasks");
 		for (const remoteTask of remoteTasks) {
 			const existing = tasksById.get(remoteTask.id);
 			if (!existing) {
@@ -709,7 +784,7 @@ export class Core {
 			activeTasks = tasks;
 		} else {
 			// Get the latest state of each task across all branches
-			progressCallback?.("Checking task states across branches...");
+			progressCallback?.("Checking task states across branches");
 			const taskIds = tasks.map((t) => t.id);
 			const latestTaskDirectories = await getLatestTaskStatesForIds(
 				this.git,
@@ -727,7 +802,7 @@ export class Core {
 		}
 
 		// Load drafts
-		progressCallback?.("Loading drafts...");
+		progressCallback?.("Loading drafts");
 		const drafts = await this.fs.listDrafts();
 
 		return { tasks: activeTasks, drafts, statuses: statuses as string[] };

@@ -12,11 +12,11 @@ import { buildRemoteTaskIndex, chooseWinners, hydrateTasks } from "./task-loader
  */
 export function getTaskLoadingMessage(config: BacklogConfig | null): string {
 	if (config?.checkActiveBranches === false) {
-		return "Loading local tasks only...";
+		return "Loading local tasks only";
 	}
 	return config?.remoteOperations === false
-		? "Loading tasks from local branches..."
-		: "Loading tasks from local and remote branches...";
+		? "Loading tasks from local branches"
+		: "Loading tasks from local and remote branches";
 }
 
 // TaskWithMetadata is now just an alias for Task (for backward compatibility)

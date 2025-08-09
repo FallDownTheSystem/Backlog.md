@@ -5,14 +5,12 @@ labels: []
 milestones: []
 date_format: yyyy-mm-dd hh:mm
 max_column_width: 20
-default_editor: "rider"
+default_editor: "edit"
 auto_open_browser: true
 default_port: 6420
-remote_operations: true
+remote_operations: false
 auto_commit: false
 zero_padded_ids: 3
-timezone_preference: "UTC"
-include_datetime_in_dates: true
 bypass_git_hooks: false
-check_active_branches: true
+check_active_branches: false
 active_branch_days: 10
