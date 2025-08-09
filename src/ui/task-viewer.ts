@@ -241,7 +241,7 @@ export async function viewTaskEnhanced(
 			parent: detailPane,
 			top: 0,
 			left: 0,
-			width: "100%-2", // Account for left and right borders
+			width: "100%-3", // Account for left and right borders
 			height: "shrink",
 			tags: true,
 			wrap: true,
@@ -259,7 +259,7 @@ export async function viewTaskEnhanced(
 			parent: detailPane,
 			top: headerBox.bottom,
 			left: 0,
-			width: "100%-2", // Account for left and right borders
+			width: "100%-3", // Account for left and right borders
 			orientation: "horizontal",
 			style: {
 				fg: "gray",
@@ -271,7 +271,7 @@ export async function viewTaskEnhanced(
 			parent: detailPane,
 			top: headerBox.bottom + 1,
 			left: 0,
-			width: "100%-2", // Account for left and right borders
+			width: "100%-3", // Account for left and right borders
 			bottom: 1, // Leave space for bottom border
 			scrollable: true,
 			alwaysScroll: true,
@@ -673,7 +673,7 @@ export async function createTaskPopup(screen: any, task: Task, content: string):
 		parent: screen,
 		top: "center",
 		left: "center",
-		width: "85%",
+		width: "80%",
 		height: "80%",
 		border: "line",
 		style: {
@@ -693,7 +693,7 @@ export async function createTaskPopup(screen: any, task: Task, content: string):
 		width: popup.width + 4,
 		height: popup.height + 2,
 		style: {
-			bg: "black",
+			bg: "gray",
 		},
 	});
 
@@ -708,7 +708,7 @@ export async function createTaskPopup(screen: any, task: Task, content: string):
 		parent: popup,
 		top: 0,
 		left: 0,
-		width: "100%",
+		width: "100%-3",
 		height: "shrink",
 		tags: true,
 		wrap: true,
@@ -722,7 +722,7 @@ export async function createTaskPopup(screen: any, task: Task, content: string):
 		parent: popup,
 		top: headerBox.bottom,
 		left: 0,
-		width: "100%",
+		width: "100%-3",
 		orientation: "horizontal",
 		style: {
 			fg: "gray",
@@ -748,7 +748,7 @@ export async function createTaskPopup(screen: any, task: Task, content: string):
 		parent: popup,
 		top: headerBox.bottom + 1,
 		left: 0,
-		width: "100%",
+		width: "100%-3",
 		bottom: 0,
 		scrollable: true,
 		alwaysScroll: true,
